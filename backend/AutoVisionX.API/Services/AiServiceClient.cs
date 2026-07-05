@@ -65,6 +65,9 @@ public class AiServiceClient : IAiServiceClient
             mileage = request.Mileage,
             condition = request.Condition,
             transmission = request.Transmission,
+            numberOfOwners = request.NumberOfOwners,
+            accidentHistory = request.AccidentHistory,
+            modifications = request.Modifications,
         };
 
         var response = await _httpClient.PostAsJsonAsync("/predict-price", payload);

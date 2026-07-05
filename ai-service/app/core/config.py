@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     temp_dir: Path = BASE_DIR / "data" / "temp"
 
     # Umbral mínimo de similitud coseno para considerar un match válido.
-    similarity_threshold: float = 0.55
+    similarity_threshold: float = 0.40
 
     # Número de colores para el clustering KMeans de color dominante.
     color_clusters: int = 3

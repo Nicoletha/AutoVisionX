@@ -21,10 +21,11 @@ from app.models.schemas import (
     YearlyAveragePoint,
 )
 from app.services.color_service import detect_dominant_colors
-from app.services.embedding_service import embedding_service
-from app.services.forecast_service import forecast_service
-from app.services.price_service import price_service
+from app.cnn.inference import cnn_classifier_service
+from app.trendnet.trend_inference import trend_net_service
+from app.regression.price_mlp_inference import price_mlp_service
 from app.services.stats_service import stats_service
+
 
 logger = logging.getLogger("autovisionx.api")
 router = APIRouter()
@@ -34,13 +35,13 @@ _ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    if not embedding_service._loaded:
-        embedding_service._load_index()
-    return HealthResponse(status="ok", catalog_classes=len(embedding_service._class_centroids))
+    cnn_classifier_service._ensure_loaded()
+    return HealthResponse(status="ok", catalog_classes=cnn_classifier_service.num_classes())
 
 
 @router.post("/predict", response_model=PredictionResponse, response_model_by_alias=True)
 async def predict(image: UploadFile = File(...)) -> PredictionResponse:
+    
     """
     Único endpoint que consume el backend ASP.NET Core.
 
@@ -58,7 +59,7 @@ async def predict(image: UploadFile = File(...)) -> PredictionResponse:
         with temp_path.open("wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
 
-        predicted_label, similarity_score = embedding_service.match(temp_path)
+        predicted_label, similarity_score = cnn_classifier_service.predict(temp_path)
         recognized = predicted_label is not None and similarity_score >= settings.similarity_threshold
 
         primary_hex, primary_name, secondary_hexes = detect_dominant_colors(temp_path)
@@ -81,21 +82,26 @@ async def predict(image: UploadFile = File(...)) -> PredictionResponse:
 @router.post("/predict-price", response_model=PricePredictionResponse, response_model_by_alias=True)
 def predict_price(payload: PricePredictionRequest) -> PricePredictionResponse:
     """
-    Modelo de REGRESIÓN independiente del de clasificación.
+    Modelo de REGRESIÓN independiente del de clasificación: una red
+    neuronal (MLP) entrenada desde cero.
 
     Estima el valor de mercado del auto REAL (no el Hot Wheels) a partir
-    de marca, modelo, año, kilometraje, condición y transmisión.
-    Ver app/services/price_service.py para el detalle del entrenamiento
+    de marca, modelo, año, kilometraje, condición, transmisión, número de
+    dueños, historial de accidentes y modificaciones.
+    Ver app/regression/train_price_mlp.py para el detalle del entrenamiento
     y app/services/price_dataset.py para el origen (sintético) de los datos.
     """
     try:
-        result = price_service.predict(
+        result = price_mlp_service.predict(
             real_car_model=payload.real_car_model,
             brand=payload.brand,
             year=payload.year,
             mileage=payload.mileage,
             condition=payload.condition,
             transmission=payload.transmission,
+            number_of_owners=payload.number_of_owners,
+            accident_history=payload.accident_history,
+            modifications=payload.modifications,
         )
         return PricePredictionResponse(
             estimatedPrice=result["estimated_price"],
@@ -120,7 +126,7 @@ def forecast_next_release(payload: NextReleaseForecastRequest) -> NextReleaseFor
     del siguiente año no observado (el "próximo lanzamiento" del auto real).
     """
     try:
-        result = forecast_service.predict_next_release(
+        result = trend_net_service.predict_next_release(
             real_car_model=payload.real_car_model,
             target_year=payload.target_year,
         )

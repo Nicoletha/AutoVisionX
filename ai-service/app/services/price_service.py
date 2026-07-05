@@ -1,149 +1,166 @@
 """
-Servicio de REGRESIÓN para estimar el precio de mercado del auto REAL
-representado por el Hot Wheels detectado (no el precio del Hot Wheels).
+Generador de dataset SINTÉTICO para los modelos de regresión de precio.
 
-Es un modelo completamente aparte del de clasificación por embeddings:
-  - Clasificación (embedding_service.py): identifica QUÉ modelo es, a
-    partir de una imagen.
-  - Regresión (este módulo): estima CUÁNTO valdría ese auto real en el
-    mercado, a partir de características tabulares (año, kilometraje,
-    condición, transmisión) que el usuario ingresa en el frontend.
+⚠ IMPORTANTE (documentar esto en la sustentación del proyecto):
+No existe un dataset público con precios reales de mercado que cubra los
+5 autos del MVP (algunos son autos exóticos: el Nissan Skyline GT-R R34
+nunca se vendió oficialmente en EE.UU., el Lamborghini Huracán es un
+superdeportivo de nicho). Los datasets públicos típicos de predicción de
+precio de autos (Craigslist, CarDekho, etc.) no incluyen estos modelos.
 
-El modelo se entrena una sola vez sobre el dataset sintético de
-price_dataset.py y se cachea en disco con joblib para no reentrenar en
-cada arranque del servicio.
+Por eso este dataset se genera sintéticamente a partir de:
+  - un precio de referencia aproximado de mercado por modelo (basado en
+    rangos conocidos de compraventa / subastas de cada auto),
+  - una curva de depreciación por kilometraje,
+  - un multiplicador de condición del vehículo,
+  - un ajuste por año (los autos "clásicos"/JDM tienden a apreciarse;
+    los superdeportivos modernos se deprecian con el uso),
+  - un ajuste por transmisión (manual suele valorarse más en autos
+    deportivos/clásicos),
+  - un ajuste por número de dueños anteriores (más dueños, menor precio,
+    igual que en cualquier tasación real de vehículo usado),
+  - un ajuste por historial de accidentes (penalización fuerte si el auto
+    tuvo un accidente reportado),
+  - un ajuste por modificaciones (los coleccionistas de clásicos/JDM
+    suelen pagar más por unidades 100% de fábrica que por modificadas),
+  - ruido aleatorio para simular variabilidad real de mercado.
+
+Esto es una aproximación pedagógica para fines de demostración académica,
+NO una fuente de valuación financiera real.
 """
 
 from __future__ import annotations
 
-import logging
-from pathlib import Path
-
-import joblib
 import numpy as np
 import pandas as pd
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
 
-from app.core.config import BASE_DIR
-from app.services.price_dataset import (
-    CONDITION_MULTIPLIERS,
-    MODEL_PROFILES,
-    TRANSMISSION_ADJUSTMENT,
-    generate_dataset,
-)
+RANDOM_SEED = 42
 
-logger = logging.getLogger("autovisionx.price")
+# Precio de referencia aproximado (USD) para un ejemplar en condición
+# "Buena", kilometraje moderado, año de referencia, 1 solo dueño, sin
+# accidentes y de fábrica.
+MODEL_PROFILES = {
+    "Nissan Skyline GT-R (R34)": {
+        "brand": "Nissan",
+        "reference_price": 95_000,
+        "reference_year": 2002,
+        "reference_mileage": 60_000,
+        # >0: se aprecia con la antigüedad (clásico JDM); <0: se deprecia.
+        "age_appreciation_per_year": 900,
+        "mileage_penalty_per_km": 0.35,
+    },
+    "Toyota Supra (A80)": {
+        "brand": "Toyota",
+        "reference_price": 55_000,
+        "reference_year": 2000,
+        "reference_mileage": 80_000,
+        "age_appreciation_per_year": 500,
+        "mileage_penalty_per_km": 0.25,
+    },
+    "Ford Mustang GT": {
+        "brand": "Ford",
+        "reference_price": 18_000,
+        "reference_year": 1998,
+        "reference_mileage": 120_000,
+        "age_appreciation_per_year": 40,
+        "mileage_penalty_per_km": 0.06,
+    },
+    "Lamborghini Huracán": {
+        "brand": "Lamborghini",
+        "reference_price": 220_000,
+        "reference_year": 2017,
+        "reference_mileage": 15_000,
+        "age_appreciation_per_year": -6_000,  # se deprecia con la antigüedad
+        "mileage_penalty_per_km": 1.8,
+    },
+    "Porsche 911 Carrera": {
+        "brand": "Porsche",
+        "reference_price": 95_000,
+        "reference_year": 2019,
+        "reference_mileage": 25_000,
+        "age_appreciation_per_year": -1_500,
+        "mileage_penalty_per_km": 0.5,
+    },
+}
 
-MODEL_ARTIFACT_PATH = BASE_DIR / "data" / "price_model" / "price_regressor.joblib"
+CONDITION_MULTIPLIERS = {
+    "Excelente": 1.15,
+    "Buena": 1.0,
+    "Regular": 0.82,
+    "Mala": 0.60,
+}
 
-CATEGORICAL_FEATURES = ["brand", "real_car_model", "condition", "transmission"]
-NUMERIC_FEATURES = ["year", "mileage"]
+TRANSMISSION_ADJUSTMENT = {
+    "Manual": 1.04,
+    "Automática": 1.0,
+}
 
+ACCIDENT_HISTORY_ADJUSTMENT = {
+    "No": 1.0,
+    "Sí": 0.80,  # un accidente reportado penaliza fuertemente el valor
+}
 
-class PriceService:
-    def __init__(self) -> None:
-        self._pipeline: Pipeline | None = None
-        self._mae: float | None = None
+MODIFICATIONS_ADJUSTMENT = {
+    "De fábrica": 1.0,
+    "Modificado": 0.90,  # coleccionistas prefieren unidades 100% originales
+}
 
-    def _build_pipeline(self) -> Pipeline:
-        preprocessor = ColumnTransformer(
-            transformers=[
-                ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
-            ],
-            remainder="passthrough",  # deja pasar year, mileage tal cual
-        )
-        model = RandomForestRegressor(
-            n_estimators=300,
-            max_depth=12,
-            random_state=42,
-            n_jobs=-1,
-        )
-        return Pipeline(steps=[("preprocessor", preprocessor), ("model", model)])
-
-    def train(self, save: bool = True) -> float:
-        """Entrena el regresor sobre el dataset sintético y devuelve el MAE de validación."""
-        df = generate_dataset()
-        X = df[CATEGORICAL_FEATURES + NUMERIC_FEATURES]
-        y = df["price"]
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-
-        pipeline = self._build_pipeline()
-        pipeline.fit(X_train, y_train)
-
-        predictions = pipeline.predict(X_test)
-        mae = mean_absolute_error(y_test, predictions)
-
-        logger.info("Regresor de precio entrenado. MAE de validación: $%.2f", mae)
-
-        self._pipeline = pipeline
-        self._mae = mae
-
-        if save:
-            MODEL_ARTIFACT_PATH.parent.mkdir(parents=True, exist_ok=True)
-            joblib.dump({"pipeline": pipeline, "mae": mae}, MODEL_ARTIFACT_PATH)
-
-        return mae
-
-    def _ensure_loaded(self) -> None:
-        if self._pipeline is not None:
-            return
-
-        if MODEL_ARTIFACT_PATH.exists():
-            logger.info("Cargando regresor de precio desde caché: %s", MODEL_ARTIFACT_PATH)
-            artifact = joblib.load(MODEL_ARTIFACT_PATH)
-            self._pipeline = artifact["pipeline"]
-            self._mae = artifact["mae"]
-        else:
-            logger.info("No hay modelo de precio cacheado. Entrenando uno nuevo...")
-            self.train(save=True)
-
-    def predict(
-        self,
-        real_car_model: str,
-        brand: str,
-        year: int,
-        mileage: int,
-        condition: str,
-        transmission: str,
-    ) -> dict:
-        self._ensure_loaded()
-        assert self._pipeline is not None
-
-        if condition not in CONDITION_MULTIPLIERS:
-            condition = "Buena"
-        if transmission not in TRANSMISSION_ADJUSTMENT:
-            transmission = "Automática"
-
-        row = pd.DataFrame([{
-            "brand": brand,
-            "real_car_model": real_car_model,
-            "condition": condition,
-            "transmission": transmission,
-            "year": year,
-            "mileage": mileage,
-        }])
-
-        estimated_price = float(self._pipeline.predict(row)[0])
-        margin = float(self._mae or estimated_price * 0.12)
-
-        return {
-            "estimated_price": round(max(0.0, estimated_price), 2),
-            "price_range_low": round(max(0.0, estimated_price - margin), 2),
-            "price_range_high": round(estimated_price + margin, 2),
-            "currency": "USD",
-            "model_mae": round(margin, 2),
-        }
-
-    def known_models(self) -> list[str]:
-        return list(MODEL_PROFILES.keys())
+# Penalización por cada dueño adicional al primero.
+OWNER_PENALTY_PER_EXTRA_OWNER = 0.03
+MAX_OWNERS = 5
 
 
-price_service = PriceService()
+def _simulate_row(model_name: str, rng: np.random.Generator) -> dict:
+    profile = MODEL_PROFILES[model_name]
+
+    year = int(rng.integers(profile["reference_year"] - 6, profile["reference_year"] + 6))
+    mileage = max(0, int(rng.normal(profile["reference_mileage"], profile["reference_mileage"] * 0.35)))
+    condition = rng.choice(list(CONDITION_MULTIPLIERS.keys()), p=[0.2, 0.45, 0.25, 0.1])
+    transmission = rng.choice(list(TRANSMISSION_ADJUSTMENT.keys()), p=[0.55, 0.45])
+    number_of_owners = int(rng.choice(range(1, MAX_OWNERS + 1), p=[0.35, 0.30, 0.18, 0.10, 0.07]))
+    accident_history = rng.choice(list(ACCIDENT_HISTORY_ADJUSTMENT.keys()), p=[0.85, 0.15])
+    modifications = rng.choice(list(MODIFICATIONS_ADJUSTMENT.keys()), p=[0.7, 0.3])
+
+    year_delta = year - profile["reference_year"]
+    mileage_delta = mileage - profile["reference_mileage"]
+
+    price = profile["reference_price"]
+    price += year_delta * profile["age_appreciation_per_year"]
+    price -= mileage_delta * profile["mileage_penalty_per_km"]
+    price *= CONDITION_MULTIPLIERS[condition]
+    price *= TRANSMISSION_ADJUSTMENT[transmission]
+    price *= ACCIDENT_HISTORY_ADJUSTMENT[accident_history]
+    price *= MODIFICATIONS_ADJUSTMENT[modifications]
+    price *= max(0.55, 1 - OWNER_PENALTY_PER_EXTRA_OWNER * (number_of_owners - 1))
+
+    # Ruido de mercado (+/- ~8%)
+    noise = rng.normal(1.0, 0.08)
+    price = max(2_000, price * noise)
+
+    return {
+        "brand": profile["brand"],
+        "real_car_model": model_name,
+        "year": year,
+        "mileage": mileage,
+        "condition": condition,
+        "transmission": transmission,
+        "number_of_owners": number_of_owners,
+        "accident_history": accident_history,
+        "modifications": modifications,
+        "price": round(price, 2),
+    }
+
+
+def generate_dataset(rows_per_model: int = 400, seed: int = RANDOM_SEED) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    rows = [
+        _simulate_row(model_name, rng)
+        for model_name in MODEL_PROFILES
+        for _ in range(rows_per_model)
+    ]
+    return pd.DataFrame(rows)
+
+
+if __name__ == "__main__":
+    df = generate_dataset()
+    print(df.groupby("real_car_model")["price"].describe())

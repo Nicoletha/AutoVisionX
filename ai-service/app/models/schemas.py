@@ -39,6 +39,9 @@ class PricePredictionRequest(BaseModel):
     mileage: int = Field(ge=0)
     condition: str = Field(description="Excelente | Buena | Regular | Mala")
     transmission: str = Field(description="Manual | Automática")
+    number_of_owners: int = Field(default=1, ge=1, le=5, alias="numberOfOwners")
+    accident_history: str = Field(default="No", description="Sí | No", alias="accidentHistory")
+    modifications: str = Field(default="De fábrica", description="De fábrica | Modificado")
 
     class Config:
         populate_by_name = True

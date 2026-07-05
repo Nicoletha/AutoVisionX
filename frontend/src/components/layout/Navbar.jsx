@@ -1,6 +1,6 @@
 import { ArrowLeft, Menu, Scan, X } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Navbar({ showBack = false, subtitle }) {
   const navigate = useNavigate();
@@ -8,17 +8,21 @@ export default function Navbar({ showBack = false, subtitle }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isHome = location.pathname === '/';
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
   return (
-    <header className="sticky top-0 z-40 px-4 pt-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1440px]">
-        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[rgba(10,10,14,0.72)] shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-          {/* background glow */}
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_32%,transparent_72%,rgba(255,255,255,0.03))]" />
-          <div className="pointer-events-none absolute left-[-60px] top-[-50px] h-40 w-40 rounded-full bg-[var(--color-red)]/10 blur-3xl" />
+    <header className="sticky top-0 z-50 px-4 pt-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1480px]">
+        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[rgba(10,10,14,0.76)] shadow-[0_18px_50px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+          {/* FX */}
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_30%,transparent_70%,rgba(255,255,255,0.03))]" />
+          <div className="pointer-events-none absolute left-[-70px] top-[-60px] h-44 w-44 rounded-full bg-[var(--color-red)]/10 blur-3xl" />
           <div className="pointer-events-none absolute right-[-60px] top-[-40px] h-40 w-40 rounded-full bg-white/[0.03] blur-3xl" />
           <div className="pointer-events-none absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-          <div className="relative flex h-[72px] items-center justify-between px-4 sm:px-5 lg:px-6">
+          <div className="relative flex min-h-[74px] items-center justify-between px-4 py-3 sm:px-5 lg:px-6">
             {/* LEFT */}
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               {showBack && (
@@ -55,8 +59,7 @@ export default function Navbar({ showBack = false, subtitle }) {
 
                   {isHome ? (
                     <p className="hidden text-[12px] text-[var(--color-text-muted)] sm:block">
-                      Reconocimiento visual de automóviles a partir de imagen o
-                      cámara
+                      Reconocimiento visual de automóviles a partir de imagen o cámara
                     </p>
                   ) : subtitle ? (
                     <p className="hidden text-[12px] text-[var(--color-text-muted)] sm:block">
@@ -97,7 +100,7 @@ export default function Navbar({ showBack = false, subtitle }) {
 
           {/* MOBILE MENU */}
           {menuOpen && (
-            <div className="border-t border-white/10 bg-[rgba(12,12,18,0.9)] px-4 py-4 md:hidden">
+            <div className="border-t border-white/10 bg-[rgba(12,12,18,0.92)] px-4 py-4 md:hidden">
               <div className="flex flex-col gap-2">
                 <Link
                   to="/"

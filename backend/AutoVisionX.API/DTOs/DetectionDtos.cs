@@ -53,10 +53,21 @@ public class PricePredictionRequestDto
     public string Brand { get; set; } = string.Empty;
     public int Year { get; set; }
     public int Mileage { get; set; }
-    public string Condition { get; set; } = "Buena";
-    public string Transmission { get; set; } = "Automática";
-}
 
+    /// <summary>Excelente | Buena | Regular | Mala</summary>
+    public string Condition { get; set; } = "Buena";
+
+    /// <summary>Manual | Automática</summary>
+    public string Transmission { get; set; } = "Automática";
+
+    public int NumberOfOwners { get; set; } = 1;
+
+    /// <summary>Sí | No</summary>
+    public string AccidentHistory { get; set; } = "No";
+
+    /// <summary>De fábrica | Modificado</summary>
+    public string Modifications { get; set; } = "De fábrica";
+}
 public class PricePredictionResultDto
 {
     public double EstimatedPrice { get; set; }

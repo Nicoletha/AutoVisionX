@@ -5,6 +5,8 @@ import PriceStatsModal from './PriceStatsModal';
 
 const CONDITIONS = ['Excelente', 'Buena', 'Regular', 'Mala'];
 const TRANSMISSIONS = ['Manual', 'Automática'];
+const ACCIDENT_OPTIONS = ['No', 'Sí'];
+const MODIFICATION_OPTIONS = ['De fábrica', 'Modificado'];
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('es-MX', {
@@ -19,6 +21,9 @@ export default function PriceEstimateCard({ car }) {
   const [mileage, setMileage] = useState(50000);
   const [condition, setCondition] = useState('Buena');
   const [transmission, setTransmission] = useState('Automática');
+  const [numberOfOwners, setNumberOfOwners] = useState(1);
+  const [accidentHistory, setAccidentHistory] = useState('No');
+  const [modifications, setModifications] = useState('De fábrica');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -37,6 +42,9 @@ export default function PriceEstimateCard({ car }) {
         mileage: Number(mileage),
         condition,
         transmission,
+        numberOfOwners: Number(numberOfOwners),
+        accidentHistory,
+        modifications,
       });
       setResult(data);
     } catch (err) {
@@ -102,6 +110,44 @@ export default function PriceEstimateCard({ car }) {
             ))}
           </select>
         </label>
+
+        <label className="text-xs text-[var(--color-text-muted)]">
+          N.º de dueños
+          <input
+            type="number"
+            min={1}
+            max={5}
+            value={numberOfOwners}
+            onChange={(e) => setNumberOfOwners(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--color-panel-border)] bg-[var(--color-bg-elevated)] px-2.5 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
+          />
+        </label>
+
+        <label className="text-xs text-[var(--color-text-muted)]">
+          Accidentes
+          <select
+            value={accidentHistory}
+            onChange={(e) => setAccidentHistory(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--color-panel-border)] bg-[var(--color-bg-elevated)] px-2.5 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
+          >
+            {ACCIDENT_OPTIONS.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-xs text-[var(--color-text-muted)]">
+          Modificaciones
+          <select
+            value={modifications}
+            onChange={(e) => setModifications(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--color-panel-border)] bg-[var(--color-bg-elevated)] px-2.5 py-2 text-sm text-white outline-none focus:border-[var(--color-red)]"
+          >
+            {MODIFICATION_OPTIONS.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -140,7 +186,7 @@ export default function PriceEstimateCard({ car }) {
             Rango estimado: {formatCurrency(result.priceRangeLow)} – {formatCurrency(result.priceRangeHigh)}
           </p>
           <p className="mt-2 text-[10px] leading-relaxed text-[var(--color-text-faint)]">
-            Estimación generada por un modelo de regresión (RandomForest) entrenado con datos
+            Estimación generada por una red neuronal (MLP) entrenada desde cero con datos
             sintéticos de referencia de mercado. No constituye una tasación oficial.
           </p>
         </div>

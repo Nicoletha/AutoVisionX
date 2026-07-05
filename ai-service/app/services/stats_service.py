@@ -13,8 +13,6 @@ import numpy as np
 import pandas as pd
 
 from app.services.price_dataset import generate_dataset
-from app.services.price_service import price_service
-
 
 class StatsService:
     def __init__(self) -> None:
@@ -55,26 +53,63 @@ class StatsService:
             "distribution": distribution,
         }
 
-    def price_feature_importance(self) -> list[dict]:
+def price_feature_importance(self, sample_size: int = 60) -> list[dict]:
         """
-        Importancia de cada característica en el RandomForestRegressor
-        (marca, modelo, condición, transmisión, año, kilometraje).
+        Importancia de cada característica en la red neuronal (MLP) de precio,
+        calculada por PERMUTACIÓN: se mezcla aleatoriamente una característica
+        a la vez y se mide cuánto empeora el error (MAE) de la red sin ella.
+        Cuanto más empeora el error, más importante era esa característica.
+
+        A diferencia de RandomForest, una red neuronal no expone una medida
+        de importancia nativa, por lo que la permutación es la técnica
+        estándar para obtenerla de forma independiente del modelo.
         """
-        price_service._ensure_loaded()
-        pipeline = price_service._pipeline
-        preprocessor = pipeline.named_steps["preprocessor"]
-        model = pipeline.named_steps["model"]
+        from sklearn.metrics import mean_absolute_error
 
-        feature_names = list(preprocessor.get_feature_names_out())
-        importances = model.feature_importances_
+        from app.regression.price_mlp_inference import price_mlp_service
+        from app.regression.train_price_mlp import CATEGORICAL_FEATURES, NUMERIC_FEATURES
 
-        pairs = sorted(zip(feature_names, importances), key=lambda x: -x[1])
+        price_mlp_service._ensure_loaded()
+
+        df = self._ensure_data()
+        sample = df.sample(n=min(sample_size, len(df)), random_state=42).reset_index(drop=True)
+        features = CATEGORICAL_FEATURES + NUMERIC_FEATURES
+
+        def batch_predict(frame: pd.DataFrame) -> list[float]:
+            return [
+                price_mlp_service.predict(
+                    real_car_model=row.real_car_model,
+                    brand=row.brand,
+                    year=int(row.year),
+                    mileage=int(row.mileage),
+                    condition=row.condition,
+                    transmission=row.transmission,
+                    number_of_owners=int(row.number_of_owners),
+                    accident_history=row.accident_history,
+                    modifications=row.modifications,
+                )["estimated_price"]
+                for row in frame.itertuples()
+            ]
+
+        baseline_preds = batch_predict(sample)
+        baseline_mae = mean_absolute_error(sample["price"], baseline_preds)
+
+        rng = np.random.default_rng(42)
+        raw_importances = []
+        for feature in features:
+            shuffled = sample.copy()
+            shuffled[feature] = rng.permutation(shuffled[feature].values)
+            preds = batch_predict(shuffled)
+            mae = mean_absolute_error(sample["price"], preds)
+            raw_importances.append((feature, max(0.0, mae - baseline_mae)))
+
+        total = sum(v for _, v in raw_importances) or 1.0
         return [
-            {"feature": _clean_feature_name(name), "importance": round(float(imp), 4)}
-            for name, imp in pairs
+            {"feature": _clean_feature_name(f), "importance": round(v / total, 4)}
+            for f, v in sorted(raw_importances, key=lambda x: -x[1])
         ]
 
-    def forecast_stats(self, real_car_model: str) -> dict:
+def forecast_stats(self, real_car_model: str) -> dict:
         """Estadísticas descriptivas + serie histórica año->precio promedio."""
         df = self._ensure_data()
         subset = df[df["real_car_model"] == real_car_model]

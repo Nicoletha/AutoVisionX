@@ -7,9 +7,14 @@ Estrategia:
   2) Aplicar un filtro simple para descartar píxeles casi blancos/negros
      (fondo de estudio) cuando sea posible.
   3) Clustering KMeans sobre los píxeles restantes para hallar los
-     colores dominantes.
+     colores dominantes (esto sigue siendo procesamiento de imagen puro,
+     no una red neuronal: se necesita para saber CUÁLES píxeles
+     representan el color del auto).
   4) Ordenar los clusters por tamaño: el más grande es el color principal,
      el resto son colores secundarios.
+  5) Nombrar el color principal usando la red neuronal entrenada desde
+     cero en app/colornet/ (reemplaza la antigua heurística de "color
+     de referencia más cercano").
 """
 
 from __future__ import annotations
@@ -20,34 +25,8 @@ import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 
+from app.colornet.color_classifier_inference import color_classifier_service
 from app.core.config import settings
-
-# Nombres aproximados en español para los tonos más comunes.
-_COLOR_NAMES = [
-    ("Rojo", (180, 30, 30)),
-    ("Naranja", (230, 126, 34)),
-    ("Amarillo", (230, 210, 40)),
-    ("Verde", (39, 174, 96)),
-    ("Azul", (41, 84, 168)),
-    ("Morado", (110, 60, 160)),
-    ("Rosa", (220, 90, 150)),
-    ("Blanco", (245, 245, 245)),
-    ("Gris", (140, 140, 140)),
-    ("Negro", (25, 25, 25)),
-    ("Café", (110, 70, 40)),
-]
-
-
-def _closest_color_name(rgb: tuple[int, int, int]) -> str:
-    r, g, b = rgb
-    best_name = "Desconocido"
-    best_dist = float("inf")
-    for name, (cr, cg, cb) in _COLOR_NAMES:
-        dist = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
-        if dist < best_dist:
-            best_dist = dist
-            best_name = name
-    return best_name
 
 
 def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
@@ -74,6 +53,10 @@ def _filter_background_pixels(pixels: np.ndarray) -> np.ndarray:
 def detect_dominant_colors(image_path: str | Path, n_colors: int | None = None):
     """
     Devuelve (primary_hex, primary_name, secondary_hexes).
+
+    El color principal se nombra con la red neuronal de app/colornet/
+    (entrenada desde cero); los colores en sí se extraen con K-Means
+    sobre los píxeles reales de la imagen.
     """
     n_colors = n_colors or settings.color_clusters
 
@@ -99,7 +82,7 @@ def detect_dominant_colors(image_path: str | Path, n_colors: int | None = None):
     secondary_rgbs = [tuple(c) for c in centers[1:]]
 
     primary_hex = _rgb_to_hex(primary_rgb)
-    primary_name = _closest_color_name(primary_rgb)
+    primary_name, _confidence = color_classifier_service.predict(primary_rgb)
     secondary_hexes = [_rgb_to_hex(c) for c in secondary_rgbs]
 
     return primary_hex, primary_name, secondary_hexes

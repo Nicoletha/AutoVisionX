@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Tag,
   Car,
@@ -6,12 +7,16 @@ import {
   Gem,
   Palette,
   FileText,
+  TrendingUp,
+  BarChart3,
+  Sparkles,
+  ArrowUpRight,
 } from 'lucide-react';
+import ForecastStatsModal from './ForecastStatsModal';
 
 function InfoItem({ icon: Icon, label, value, accentColor }) {
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 transition-all duration-300 hover:border-white/15 hover:bg-white/[0.045]">
-      {/* glow sutil */}
       <div
         className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full blur-3xl opacity-20"
         style={{ backgroundColor: accentColor || 'var(--color-red)' }}
@@ -48,113 +53,218 @@ export default function CarInfoPanel({
   car,
   accentColor = 'var(--color-red)',
 }) {
+  const [statsOpen, setStatsOpen] = useState(false);
+
   if (!car) return null;
 
-  return (
-    <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)] sm:p-6">
-      {/* background accents */}
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),transparent_38%,transparent_70%,rgba(255,255,255,0.025))]" />
-      <div
-        className="pointer-events-none absolute left-[-80px] top-[-80px] h-48 w-48 rounded-full blur-3xl opacity-20"
-        style={{ backgroundColor: accentColor }}
-      />
-      <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+  const openStatsModal = () => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
 
-      <div className="relative">
-        {/* header */}
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-              <FileText size={14} style={{ color: accentColor }} />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-                Información del modelo
-              </span>
+    requestAnimationFrame(() => {
+      setStatsOpen(true);
+    });
+  };
+
+  const closeStatsModal = () => {
+    setStatsOpen(false);
+  };
+
+  return (
+    <>
+      <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)] sm:p-6">
+        {/* background accents */}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),transparent_38%,transparent_70%,rgba(255,255,255,0.025))]" />
+        <div
+          className="pointer-events-none absolute left-[-80px] top-[-80px] h-48 w-48 rounded-full blur-3xl opacity-20"
+          style={{ backgroundColor: accentColor }}
+        />
+        <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+        <div className="relative">
+          {/* header */}
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
+                <FileText size={14} style={{ color: accentColor }} />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                  Información del modelo
+                </span>
+              </div>
+
+              <h3 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-white sm:text-[1.35rem]">
+                Detalles del vehículo detectado
+              </h3>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-muted)]">
+                Consulta la descripción general del automóvil, su serie, rareza,
+                año y otros atributos asociados al modelo identificado.
+              </p>
             </div>
 
-            <h3 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-white sm:text-[1.35rem]">
-              Detalles del vehículo detectado
-            </h3>
-
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-muted)]">
-              Consulta la descripción general del automóvil, su serie, rareza,
-              año y otros atributos asociados al modelo identificado.
-            </p>
-          </div>
-
-          {/* accent chip */}
-          <div
-            className="inline-flex w-fit items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-            style={{
-              borderColor: `${accentColor}35`,
-              background: `linear-gradient(180deg, ${accentColor}18, rgba(255,255,255,0.03))`,
-              color: accentColor,
-            }}
-          >
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: accentColor }}
-            />
-            Color base detectado
-          </div>
-        </div>
-
-        {/* descripción */}
-        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4 sm:p-5">
-          <div className="flex items-center gap-2">
             <div
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: accentColor }}
-            />
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
-              Descripción
+              className="inline-flex w-fit items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+              style={{
+                borderColor: `${accentColor}35`,
+                background: `linear-gradient(180deg, ${accentColor}18, rgba(255,255,255,0.03))`,
+                color: accentColor,
+              }}
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: accentColor }}
+              />
+              Color base detectado
+            </div>
+          </div>
+
+          {/* descripción */}
+          <div className="rounded-[22px] border border-white/10 bg-black/20 p-4 sm:p-5">
+            <div className="flex items-center gap-2">
+              <div
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: accentColor }}
+              />
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+                Descripción
+              </p>
+            </div>
+
+            <p className="mt-3 text-sm leading-6 text-[var(--color-text)] sm:text-[15px]">
+              {car.description || 'Sin descripción disponible.'}
             </p>
           </div>
 
-          <p className="mt-3 text-sm leading-6 text-[var(--color-text)] sm:text-[15px]">
-            {car.description || 'Sin descripción disponible.'}
-          </p>
-        </div>
+          {/* info grid */}
+          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <InfoItem
+              icon={Tag}
+              label="Marca"
+              value={car.brand}
+              accentColor={accentColor}
+            />
+            <InfoItem
+              icon={Car}
+              label="Modelo real"
+              value={car.realCarModel}
+              accentColor={accentColor}
+            />
+            <InfoItem
+              icon={Layers}
+              label="Serie"
+              value={car.series}
+              accentColor={accentColor}
+            />
+            <InfoItem
+              icon={Calendar}
+              label="Año"
+              value={car.year}
+              accentColor={accentColor}
+            />
+            <InfoItem
+              icon={Gem}
+              label="Rareza"
+              value={car.rarity}
+              accentColor={accentColor}
+            />
+            <InfoItem
+              icon={Palette}
+              label="Color oficial"
+              value={car.colorName}
+              accentColor={accentColor}
+            />
+          </div>
 
-        {/* info grid */}
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <InfoItem
-            icon={Tag}
-            label="Marca"
-            value={car.brand}
-            accentColor={accentColor}
-          />
-          <InfoItem
-            icon={Car}
-            label="Modelo real"
-            value={car.realCarModel}
-            accentColor={accentColor}
-          />
-          <InfoItem
-            icon={Layers}
-            label="Serie"
-            value={car.series}
-            accentColor={accentColor}
-          />
-          <InfoItem
-            icon={Calendar}
-            label="Año"
-            value={car.year}
-            accentColor={accentColor}
-          />
-          <InfoItem
-            icon={Gem}
-            label="Rareza"
-            value={car.rarity}
-            accentColor={accentColor}
-          />
-          <InfoItem
-            icon={Palette}
-            label="Color oficial"
-            value={car.colorName}
-            accentColor={accentColor}
-          />
+          {/* NUEVA SECCIÓN: análisis / estadísticas */}
+          <div className="mt-6 rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.18)] sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
+                  <TrendingUp size={14} style={{ color: accentColor }} />
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                    Análisis de valor y tendencia
+                  </span>
+                </div>
+
+                <h3 className="mt-4 font-[var(--font-display)] text-xl font-semibold text-white sm:text-[1.3rem]">
+                  Proyección histórica del modelo
+                </h3>
+
+                <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--color-text-muted)]">
+                  Consulta el comportamiento histórico del precio del{' '}
+                  <span className="font-medium text-white">
+                    {car.realCarModel || car.name}
+                  </span>{' '}
+                  y revisa las estadísticas base utilizadas para la proyección
+                  del siguiente lanzamiento.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openStatsModal}
+                className="inline-flex w-fit items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white transition-all duration-300 hover:border-white/20 hover:bg-white/[0.06]"
+              >
+                <BarChart3 size={16} style={{ color: accentColor }} />
+                Ver estadísticas
+                <ArrowUpRight size={15} className="opacity-70" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} style={{ color: accentColor }} />
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+                    Modelo base
+                  </p>
+                </div>
+                <p className="mt-3 text-base font-semibold text-white">
+                  {car.realCarModel || car.name || '—'}
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                  Referencia principal para la serie histórica.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={14} style={{ color: accentColor }} />
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+                    Enfoque
+                  </p>
+                </div>
+                <p className="mt-3 text-base font-semibold text-white">
+                  Regresión de tendencia
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                  Basada en el comportamiento histórico agregado por año.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-2">
+                  <BarChart3 size={14} style={{ color: accentColor }} />
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
+                    Vista disponible
+                  </p>
+                </div>
+                <p className="mt-3 text-base font-semibold text-white">
+                  Serie histórica + resumen
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                  Incluye promedio, mínimo, máximo y gráfica por año.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      <ForecastStatsModal
+        open={statsOpen}
+        onClose={closeStatsModal}
+        realCarModel={car.realCarModel || car.name}
+      />
+    </>
   );
 }

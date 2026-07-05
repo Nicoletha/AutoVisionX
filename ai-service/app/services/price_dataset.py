@@ -1,5 +1,5 @@
 """
-Generador de dataset SINTÉTICO para el modelo de regresión de precio.
+Generador de dataset SINTÉTICO para los modelos de regresión de precio.
 
 ⚠ IMPORTANTE (documentar esto en la sustentación del proyecto):
 No existe un dataset público con precios reales de mercado que cubra los
@@ -15,8 +15,14 @@ Por eso este dataset se genera sintéticamente a partir de:
   - un multiplicador de condición del vehículo,
   - un ajuste por año (los autos "clásicos"/JDM tienden a apreciarse;
     los superdeportivos modernos se deprecian con el uso),
-  - un pequeño ajuste por transmisión (manual suele valorarse más en
-    autos deportivos/clásicos),
+  - un ajuste por transmisión (manual suele valorarse más en autos
+    deportivos/clásicos),
+  - un ajuste por número de dueños anteriores (más dueños, menor precio,
+    igual que en cualquier tasación real de vehículo usado),
+  - un ajuste por historial de accidentes (penalización fuerte si el auto
+    tuvo un accidente reportado),
+  - un ajuste por modificaciones (los coleccionistas de clásicos/JDM
+    suelen pagar más por unidades 100% de fábrica que por modificadas),
   - ruido aleatorio para simular variabilidad real de mercado.
 
 Esto es una aproximación pedagógica para fines de demostración académica,
@@ -31,7 +37,8 @@ import pandas as pd
 RANDOM_SEED = 42
 
 # Precio de referencia aproximado (USD) para un ejemplar en condición
-# "Buena", kilometraje moderado, año de referencia.
+# "Buena", kilometraje moderado, año de referencia, 1 solo dueño, sin
+# accidentes y de fábrica.
 MODEL_PROFILES = {
     "Nissan Skyline GT-R (R34)": {
         "brand": "Nissan",
@@ -74,6 +81,59 @@ MODEL_PROFILES = {
         "age_appreciation_per_year": -1_500,
         "mileage_penalty_per_km": 0.5,
     },
+    "Bugatti Bolide": {
+        "brand": "Bugatti",
+        "reference_price": 2_800_000,
+        "reference_year": 2021,
+        "reference_mileage": 500,
+        # Edición extremadamente limitada (40 unidades, uso exclusivo de pista):
+        # se aprecia como coleccionable de altísima gama.
+        "age_appreciation_per_year": 15_000,
+        "mileage_penalty_per_km": 25.0,
+    },
+    "Datsun 620 Pickup": {
+        "brand": "Datsun",
+        "reference_price": 16_000,
+        "reference_year": 1972,
+        "reference_mileage": 140_000,
+        "age_appreciation_per_year": 150,
+        "mileage_penalty_per_km": 0.05,
+    },
+    "Ferrari 365 GTB/4 Daytona": {
+        "brand": "Ferrari",
+        "reference_price": 650_000,
+        "reference_year": 1968,
+        "reference_mileage": 45_000,
+        # Clásico "blue-chip": aprecia fuertemente con los años.
+        "age_appreciation_per_year": 4_500,
+        "mileage_penalty_per_km": 3.5,
+    },
+    "Ford Mustang SVT Cobra": {
+        "brand": "Ford",
+        "reference_price": 28_000,
+        "reference_year": 1995,
+        "reference_mileage": 95_000,
+        "age_appreciation_per_year": 120,
+        "mileage_penalty_per_km": 0.09,
+    },
+    "Nissan Silvia S13": {
+        "brand": "Nissan",
+        "reference_price": 24_000,
+        "reference_year": 1988,
+        "reference_mileage": 110_000,
+        # Ícono JDM/drift: se aprecia igual que el Skyline o el Supra.
+        "age_appreciation_per_year": 600,
+        "mileage_penalty_per_km": 0.30,
+    },
+    "Nissan Z": {
+        "brand": "Nissan",
+        "reference_price": 42_000,
+        "reference_year": 2023,
+        "reference_mileage": 8_000,
+        # Auto moderno: se deprecia con el uso, como cualquier 0km.
+        "age_appreciation_per_year": -2_200,
+        "mileage_penalty_per_km": 0.55,
+    },
 }
 
 CONDITION_MULTIPLIERS = {
@@ -88,6 +148,20 @@ TRANSMISSION_ADJUSTMENT = {
     "Automática": 1.0,
 }
 
+ACCIDENT_HISTORY_ADJUSTMENT = {
+    "No": 1.0,
+    "Sí": 0.80,  # un accidente reportado penaliza fuertemente el valor
+}
+
+MODIFICATIONS_ADJUSTMENT = {
+    "De fábrica": 1.0,
+    "Modificado": 0.90,  # coleccionistas prefieren unidades 100% originales
+}
+
+# Penalización por cada dueño adicional al primero.
+OWNER_PENALTY_PER_EXTRA_OWNER = 0.03
+MAX_OWNERS = 5
+
 
 def _simulate_row(model_name: str, rng: np.random.Generator) -> dict:
     profile = MODEL_PROFILES[model_name]
@@ -96,6 +170,9 @@ def _simulate_row(model_name: str, rng: np.random.Generator) -> dict:
     mileage = max(0, int(rng.normal(profile["reference_mileage"], profile["reference_mileage"] * 0.35)))
     condition = rng.choice(list(CONDITION_MULTIPLIERS.keys()), p=[0.2, 0.45, 0.25, 0.1])
     transmission = rng.choice(list(TRANSMISSION_ADJUSTMENT.keys()), p=[0.55, 0.45])
+    number_of_owners = int(rng.choice(range(1, MAX_OWNERS + 1), p=[0.35, 0.30, 0.18, 0.10, 0.07]))
+    accident_history = rng.choice(list(ACCIDENT_HISTORY_ADJUSTMENT.keys()), p=[0.85, 0.15])
+    modifications = rng.choice(list(MODIFICATIONS_ADJUSTMENT.keys()), p=[0.7, 0.3])
 
     year_delta = year - profile["reference_year"]
     mileage_delta = mileage - profile["reference_mileage"]
@@ -105,6 +182,9 @@ def _simulate_row(model_name: str, rng: np.random.Generator) -> dict:
     price -= mileage_delta * profile["mileage_penalty_per_km"]
     price *= CONDITION_MULTIPLIERS[condition]
     price *= TRANSMISSION_ADJUSTMENT[transmission]
+    price *= ACCIDENT_HISTORY_ADJUSTMENT[accident_history]
+    price *= MODIFICATIONS_ADJUSTMENT[modifications]
+    price *= max(0.55, 1 - OWNER_PENALTY_PER_EXTRA_OWNER * (number_of_owners - 1))
 
     # Ruido de mercado (+/- ~8%)
     noise = rng.normal(1.0, 0.08)
@@ -117,6 +197,9 @@ def _simulate_row(model_name: str, rng: np.random.Generator) -> dict:
         "mileage": mileage,
         "condition": condition,
         "transmission": transmission,
+        "number_of_owners": number_of_owners,
+        "accident_history": accident_history,
+        "modifications": modifications,
         "price": round(price, 2),
     }
 
