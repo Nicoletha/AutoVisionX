@@ -182,7 +182,6 @@ def get_price_stats(real_car_model: str = Query(..., alias="realCarModel")) -> P
         logger.exception("Error al calcular estadísticas de precio")
         raise HTTPException(status_code=500, detail="No se pudieron calcular las estadísticas.") from exc
 
-
 @router.get("/forecast-stats", response_model=ForecastStatsResponse, response_model_by_alias=True)
 def get_forecast_stats(real_car_model: str = Query(..., alias="realCarModel")) -> ForecastStatsResponse:
     """
@@ -210,4 +209,4 @@ def get_forecast_stats(real_car_model: str = Query(..., alias="realCarModel")) -
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error al calcular estadísticas de proyección")
-        raise HTTPException(status_code=500, detail="No se pudieron calcular las estadísticas.") from exc
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

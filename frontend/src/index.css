@@ -107,3 +107,20 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .scan-line, .pulse-ring { animation: none; }
 }
+
+:root {
+  --color-background: #05070b;
+  --color-surface: #0b0e14;
+  --color-red: #ff3b30;
+  --color-red-soft: #ff5b52;
+  --color-text-muted: #9aa3b2;
+  --color-text-faint: #68707d;
+  --font-display: 'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-background);
+  color: white;
+}

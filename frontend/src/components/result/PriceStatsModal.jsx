@@ -25,15 +25,33 @@ export default function PriceStatsModal({ open, onClose, realCarModel }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (!open || !realCarModel) return;
-    setLoading(true);
-    setError(null);
-    getPriceStats(realCarModel)
-      .then(setData)
-      .catch((err) => setError(err.friendlyMessage || 'No se pudieron cargar las estadísticas.'))
-      .finally(() => setLoading(false));
-  }, [open, realCarModel]);
+useEffect(() => {
+  if (!open || !realCarModel) return;
+
+  console.log('Abriendo stats para modelo:', realCarModel);
+
+  setLoading(true);
+  setError(null);
+
+  getPriceStats(realCarModel)
+    .then((response) => {
+      console.log('PRICE STATS RESPONSE:', response);
+      setData(response);
+    })
+    .catch((err) => {
+      console.error('ERROR AL CARGAR STATS:', err);
+      console.error('ERR STATUS:', err?.response?.status);
+      console.error('ERR DATA:', err?.response?.data);
+      console.error('ERR MESSAGE:', err?.message);
+
+      setError(
+        err?.friendlyMessage ||
+        err?.response?.data?.message ||
+        'No se pudieron cargar las estadísticas.'
+      );
+    })
+    .finally(() => setLoading(false));
+}, [open, realCarModel]);
 
   const stats = data?.datasetStats;
   const maxBucketCount = stats ? Math.max(...stats.distribution.map((b) => b.count)) : 0;
