@@ -29,8 +29,8 @@ class TrendNetService:
     def __init__(self) -> None:
         self._model: TrendNet | None = None
         self._preprocessor = None
-        self._y_mean = 0.0
-        self._y_std = 1.0
+        self._price_mean_by_model: dict[str, float] = {}
+        self._price_std_by_model: dict[str, float] = {}
         self._r2_by_model: dict[str, float] = {}
         self._year_range_by_model: dict[str, tuple[int, int]] = {}
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -53,12 +53,12 @@ class TrendNetService:
 
         self._model = model
         self._preprocessor = checkpoint["preprocessor"]
-        self._y_mean = checkpoint["y_mean"]
-        self._y_std = checkpoint["y_std"]
+        self._price_mean_by_model = checkpoint["price_mean_by_model"]
+        self._price_std_by_model = checkpoint["price_std_by_model"]
         self._r2_by_model = checkpoint["r2_by_model"]
         self._year_range_by_model = checkpoint["year_range_by_model"]
         self._loaded = True
-        logger.info("Red de tendencia cargada. MAE de validación: $%.2f", checkpoint["best_val_mae"])
+        logger.info("Red de tendencia cargada.")
 
     def _predict_price_for_year(self, real_car_model: str, year: int) -> float:
         row = pd.DataFrame([{"real_car_model": real_car_model, "year": year}])
@@ -66,7 +66,9 @@ class TrendNetService:
         tensor = torch.tensor(encoded).to(self._device)
         with torch.no_grad():
             pred_norm = self._model(tensor).cpu().numpy()[0]
-        return float(pred_norm * self._y_std + self._y_mean)
+        mean = self._price_mean_by_model[real_car_model]
+        std = self._price_std_by_model[real_car_model]
+        return float(pred_norm * std + mean)
 
     def predict_next_release(self, real_car_model: str, target_year: int | None = None) -> dict:
         self._ensure_loaded()
@@ -78,9 +80,6 @@ class TrendNetService:
         next_year = target_year or (max_year + 1)
 
         predicted_price = self._predict_price_for_year(real_car_model, next_year)
-
-        # Pendiente local: diferencia entre la predicción en next_year y en next_year - 1
-        # (la red no es lineal, así que la "pendiente" se aproxima localmente).
         price_prev_year = self._predict_price_for_year(real_car_model, next_year - 1)
         slope_per_year = predicted_price - price_prev_year
 

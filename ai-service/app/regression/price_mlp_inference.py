@@ -106,7 +106,9 @@ class PriceMlpService:
         tensor = torch.tensor(encoded).to(self._device)
 
         pred_norm = self._model(tensor).cpu().numpy()[0]
-        estimated_price = float(pred_norm * self._y_std + self._y_mean)
+        pred_log = float(pred_norm * self._y_std + self._y_mean)
+        # Revertir la transformación log(1 + precio) usada durante el entrenamiento.
+        estimated_price = float(np.expm1(pred_log))
         margin = float(self._best_val_mae or estimated_price * 0.12)
 
         return {
